@@ -19,3 +19,11 @@ target_link_libraries(linearColors PRIVATE imgui::imgui)
 # Add STB
 find_package(Stb REQUIRED)
 target_include_directories(linearColors PRIVATE ${Stb_INCLUDE_DIR})
+
+# Add Tiny obj loader
+find_package(tinyobjloader CONFIG REQUIRED)
+target_link_libraries(linearColors PRIVATE tinyobjloader::tinyobjloader)
+
+# Add VK bootstrap
+find_package(vk-bootstrap CONFIG REQUIRED)
+target_link_libraries(linearColors PRIVATE vk-bootstrap::vk-bootstrap vk-bootstrap::vk-bootstrap-compiler-warnings)
