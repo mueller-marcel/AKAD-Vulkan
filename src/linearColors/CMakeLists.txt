@@ -7,3 +7,7 @@ add_executable(linearColors main.cpp)
 # Add GLM
 find_package(glm CONFIG REQUIRED)
 target_link_libraries(linearColors PRIVATE glm::glm)
+
+# Add SDL
+find_package(SDL3 CONFIG REQUIRED)
+target_link_libraries(linearColors PRIVATE SDL3::SDL3)
