@@ -15,3 +15,7 @@ target_link_libraries(linearColors PRIVATE SDL3::SDL3)
 # Add IMGUI
 find_package(imgui CONFIG REQUIRED)
 target_link_libraries(linearColors PRIVATE imgui::imgui)
+
+# Add STB
+find_package(Stb REQUIRED)
+target_include_directories(linearColors PRIVATE ${Stb_INCLUDE_DIR})
