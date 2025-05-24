@@ -11,3 +11,7 @@ target_link_libraries(linearColors PRIVATE glm::glm)
 # Add SDL
 find_package(SDL3 CONFIG REQUIRED)
 target_link_libraries(linearColors PRIVATE SDL3::SDL3)
+
+# Add IMGUI
+find_package(imgui CONFIG REQUIRED)
+target_link_libraries(linearColors PRIVATE imgui::imgui)
