@@ -27,3 +27,8 @@ target_link_libraries(linearColors PRIVATE tinyobjloader::tinyobjloader)
 # Add VK bootstrap
 find_package(vk-bootstrap CONFIG REQUIRED)
 target_link_libraries(linearColors PRIVATE vk-bootstrap::vk-bootstrap vk-bootstrap::vk-bootstrap-compiler-warnings)
+
+# Add vulkan memory allocator
+find_package(Vulkan)
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+target_link_libraries(linearColors PRIVATE Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
