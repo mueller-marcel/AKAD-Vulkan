@@ -397,10 +397,11 @@ void VulkanEngine::draw() {
 
     VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_create_info));
 
-    // Create a clear collor from the frame number. It will flash
+    // Create a clear color from the frame number. It will flash
     VkClearValue clear_value = {};
-    float flash = abs(sin(_frameNumber / 120.0f));
-    clear_value.color = {{0.0f, 0.0f, flash, 1.0f}};
+    // float flash = abs(sin(_frameNumber / 120.0f));
+    float flash = 0.0f;
+    clear_value.color = {{0.0f, 0.0f, flash, 0.0f}};
 
     // Start the main renderpass
     VkRenderPassBeginInfo render_pass_create_info = {};
