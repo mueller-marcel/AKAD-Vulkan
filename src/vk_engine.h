@@ -3,6 +3,21 @@
 #include <vk_types.h>
 #include <vector>
 
+class PipelineBuilder {
+	public:
+	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
+	VkPipelineVertexInputStateCreateInfo _vertexInputInfo;
+	VkPipelineInputAssemblyStateCreateInfo _inputAssembly;
+	VkViewport _viewport;
+	VkRect2D _scissor;
+	VkPipelineRasterizationStateCreateInfo _rasterizer;
+	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
+	VkPipelineMultisampleStateCreateInfo _multisampling;
+	VkPipelineLayout _pipelineLayout;
+
+	VkPipeline build_pipeline(VkDevice device, VkRenderPass renderpass);
+};
+
 /**
  * A class responsible for initializing and managing the Vulkan rendering engine,
  * including setup, resource allocation, and rendering operations.
@@ -43,6 +58,19 @@ private :
 	 * Initializes the sync structures
 	 */
 	void init_sync_structures();
+
+	/**
+	 * Loads the shaders
+	 * @param file_path The shaders file path
+	 * @param out_shader_module The pointer to the loaded shader module
+	 * @return Indicates whether the shader was loaded successfully
+	 */
+	bool load_shader_module(const char* file_path, VkShaderModule* out_shader_module);
+
+	/**
+	 * Initialize the render pipeline
+	 */
+	void init_pipelines();
 
 public:
 	/**
@@ -161,6 +189,10 @@ public:
 	VkSemaphore _renderSemaphore;
 
 	VkFence _renderFence;
+
+	VkPipeline _trianglePipeline;
+
+	VkPipelineLayout _trianglePipelineLayout;
 
 	/**
 	 * The SDL window used as the main rendering target and interface for the Vulkan engine.

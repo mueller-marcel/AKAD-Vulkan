@@ -20,6 +20,52 @@ namespace vkinit {
      */
     VkCommandBufferAllocateInfo command_buffer_allocate_info(VkCommandPool pool, uint32_t count = 1);
 
+    /**
+     *
+     * @param stage
+     * @param shaderModule
+     * @param entry
+     * @return
+     */
+    VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info(VkShaderStageFlagBits stage, VkShaderModule shaderModule, const char * entry = "main");
+
+    /**
+     *
+     * @return
+     */
+    VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info();
+
+    /**
+     *
+     * @param topology
+     * @return
+     */
+    VkPipelineInputAssemblyStateCreateInfo pipeline_input_assembly_state_create_info(VkPrimitiveTopology topology);
+
+    /**
+     *
+     * @return
+     */
+    VkPipelineRasterizationStateCreateInfo pipeline_rasterization_state_create_info(VkPolygonMode polygon_mode);
+
+    /**
+     *
+     * @return
+     */
+    VkPipelineMultisampleStateCreateInfo pipeline_multisample_state_create_info();
+
+    /**
+     *
+     * @return
+     */
+    VkPipelineColorBlendAttachmentState pipeline_color_blend_attachment_state();
+
+    /**
+     *
+     * @return
+     */
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info();
+
 
 VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags = 0);
 VkCommandBufferSubmitInfo command_buffer_submit_info(VkCommandBuffer cmd);
@@ -55,8 +101,4 @@ VkDescriptorBufferInfo buffer_info(VkBuffer buffer, VkDeviceSize offset, VkDevic
 
 VkImageCreateInfo image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
 VkImageViewCreateInfo imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
-VkPipelineLayoutCreateInfo pipeline_layout_create_info();
-VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info(VkShaderStageFlagBits stage,
-    VkShaderModule shaderModule,
-    const char * entry = "main");
-} // namespace vkinit
+}

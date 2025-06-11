@@ -7,6 +7,7 @@
 #include <vk_types.h>
 
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <thread>
 #include <VkBootstrap.h>
@@ -60,6 +61,9 @@ void VulkanEngine::init() {
 
     // Initialize the sync structures
     init_sync_structures();
+
+    // Initialize the pipelines
+    init_pipelines();
 
     // everything went fine
     _isInitialized = true;
@@ -184,7 +188,6 @@ void VulkanEngine::init_default_renderpass() {
 }
 
 void VulkanEngine::init_framebuffers() {
-
     // Create the framebuffers for the swapchain images
     VkFramebufferCreateInfo framebuffer_create_info = {};
     framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -207,7 +210,6 @@ void VulkanEngine::init_framebuffers() {
 }
 
 void VulkanEngine::init_sync_structures() {
-
     // Create the synchronization structures
     VkFenceCreateInfo fence_create_info = {};
     fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -225,9 +227,128 @@ void VulkanEngine::init_sync_structures() {
     VK_CHECK(vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &_renderSemaphore));
 }
 
+bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out_shader_module) {
+
+    // Load the shader from the file
+    std::ifstream file(file_path, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    // Get the size of the file
+    size_t file_size = file.tellg();
+    std::vector<uint32_t> buffer(file_size / sizeof(uint32_t));
+    file.seekg(0);
+    file.read((char *) buffer.data(), file_size);
+    file.close();
+
+    // Create a new shader module using the loaded buffer
+    VkShaderModuleCreateInfo shader_module_create_info = {};
+    shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shader_module_create_info.pNext = nullptr;
+    shader_module_create_info.codeSize = buffer.size() * sizeof(uint32_t);
+    shader_module_create_info.pCode = buffer.data();
+
+    // Load the file into the shader module
+    VkShaderModule shader_module;
+    if (vkCreateShaderModule(_device, &shader_module_create_info, nullptr, &shader_module) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Point to the shader module
+    *out_shader_module = shader_module;
+
+    return true;
+}
+
+void VulkanEngine::init_pipelines() {
+    VkShaderModule triangle_vertex_shader;
+
+    // Load the vertex shader
+    if (!load_shader_module("../shaders/triangle.vert.spv", &triangle_vertex_shader)) {
+        std::cout << "Failed to load triangle shader" << std::endl;
+    } else {
+        std::cout << "Loaded triangle shader" << std::endl;
+    }
+
+    VkShaderModule triangle_fragment_shader;
+
+    // Load the fragment shader
+    if (!load_shader_module("../shaders/triangle.frag.spv", &triangle_fragment_shader)) {
+        std::cout << "Failed to load triangle shader" << std::endl;
+    } else {
+        std::cout << "Loaded triangle shader" << std::endl;
+    }
+
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = vkinit::pipeline_layout_create_info();
+    VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_create_info, nullptr, &_trianglePipelineLayout));
+
+    PipelineBuilder pipeline_builder;
+    pipeline_builder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangle_vertex_shader));
+    pipeline_builder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangle_fragment_shader));
+    pipeline_builder._vertexInputInfo = vkinit::pipeline_vertex_input_state_create_info();
+    pipeline_builder._inputAssembly = vkinit::pipeline_input_assembly_state_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    pipeline_builder._viewport.x = 0.0f;
+    pipeline_builder._viewport.y = 0.0f;
+    pipeline_builder._viewport.width = static_cast<float>(_windowExtent.width);
+    pipeline_builder._viewport.height = static_cast<float>(_windowExtent.height);
+    pipeline_builder._viewport.minDepth = 0.0f;
+    pipeline_builder._viewport.maxDepth = 1.0f;
+    pipeline_builder._scissor.offset = {0,0,};
+    pipeline_builder._scissor.extent = _windowExtent;
+    pipeline_builder._rasterizer = vkinit::pipeline_rasterization_state_create_info(VK_POLYGON_MODE_FILL);
+    pipeline_builder._multisampling = vkinit::pipeline_multisample_state_create_info();
+    pipeline_builder._colorBlendAttachment = vkinit::pipeline_color_blend_attachment_state();
+    pipeline_builder._pipelineLayout = _trianglePipelineLayout;
+    _trianglePipeline = pipeline_builder.build_pipeline(_device, _renderPass);
+}
+
+VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderpass) {
+
+    VkPipelineViewportStateCreateInfo viewport_state_create_info = {};
+    viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state_create_info.pNext = nullptr;
+    viewport_state_create_info.viewportCount = 1;
+    viewport_state_create_info.pViewports = &_viewport;
+    viewport_state_create_info.scissorCount = 1;
+    viewport_state_create_info.pScissors = &_scissor;
+
+    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
+    color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend_state_create_info.pNext = nullptr;
+    color_blend_state_create_info.logicOpEnable = VK_FALSE;
+    color_blend_state_create_info.logicOp = VK_LOGIC_OP_COPY;
+    color_blend_state_create_info.attachmentCount = 1;
+    color_blend_state_create_info.pAttachments = &_colorBlendAttachment;
+
+    VkGraphicsPipelineCreateInfo pipeline_create_info = {};
+    pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_create_info.pNext = nullptr;
+    pipeline_create_info.stageCount = _shaderStages.size();
+    pipeline_create_info.pStages = _shaderStages.data();
+    pipeline_create_info.pVertexInputState = &_vertexInputInfo;
+    pipeline_create_info.pInputAssemblyState = &_inputAssembly;
+    pipeline_create_info.pViewportState = &viewport_state_create_info;
+    pipeline_create_info.pRasterizationState = &_rasterizer;
+    pipeline_create_info.pMultisampleState = &_multisampling;
+    pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
+    pipeline_create_info.layout = _pipelineLayout;
+    pipeline_create_info.renderPass = renderpass;
+    pipeline_create_info.subpass = 0;
+    pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+
+    VkPipeline new_pipeline;
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &new_pipeline) != VK_SUCCESS) {
+        std::cout << "Failed to create graphics pipeline" << std::endl;
+        return VK_NULL_HANDLE;
+    }
+    else {
+        return new_pipeline;
+    }
+}
+
 
 void VulkanEngine::cleanup() {
-
     if (_isInitialized) {
         // Destroy the command pool
         vkDestroyCommandPool(_device, _commandPool, nullptr);
@@ -256,14 +377,14 @@ void VulkanEngine::cleanup() {
 }
 
 void VulkanEngine::draw() {
-
     // Wait for the GPU to render the last frame with a timeout of 1 second
     VK_CHECK(vkWaitForFences(_device, 1, &_renderFence, VK_TRUE, UINT64_MAX));
     VK_CHECK(vkResetFences(_device, 1, &_renderFence));
 
     // Request image from the swapchain
     uint32_t swapchain_image_index;
-    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _presentSemaphore, nullptr, &swapchain_image_index));
+    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _presentSemaphore, nullptr, &swapchain_image_index))
+    ;
     VK_CHECK(vkResetCommandBuffer(_commandBuffer, 0));
 
     // Begin the command buffer recording
@@ -294,6 +415,9 @@ void VulkanEngine::draw() {
     render_pass_create_info.pClearValues = &clear_value;
 
     vkCmdBeginRenderPass(command_buffer, &render_pass_create_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
 
     vkCmdEndRenderPass(command_buffer);
 
