@@ -1,11 +1,8 @@
 ﻿#include "vk_engine.h"
-
 #include <SDL.h>
 #include <SDL_vulkan.h>
-
 #include <vk_initializers.h>
 #include <vk_types.h>
-
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -13,6 +10,7 @@
 #include <VkBootstrap.h>
 
 using namespace std;
+
 #define VK_CHECK(x)                                                                 \
 do {                                                                                \
     VkResult err = x;                                                               \
@@ -34,14 +32,19 @@ void VulkanEngine::init() {
     // We initialize SDL and create a window with it.
     SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_WindowFlags window_flags = (SDL_WindowFlags) (SDL_WINDOW_VULKAN);
+    auto window_flags = SDL_WINDOW_VULKAN;
 
+    // Cast the window extent to int
+    const int width = static_cast<int>(_windowExtent.width);
+    const int height = static_cast<int>(_windowExtent.height);
+
+    // Create the window
     _window = SDL_CreateWindow(
-        "Vulkan Engine",
+        "Vulkan Triangle with color gradient",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        _windowExtent.width,
-        _windowExtent.height,
+        width,
+        height,
         window_flags);
 
     // Initialize the vulkan engine
@@ -218,6 +221,7 @@ void VulkanEngine::init_sync_structures() {
 
     VK_CHECK(vkCreateFence(_device, &fence_create_info, nullptr, &_renderFence));
 
+    // The parameters for the semaphore instantiation
     VkSemaphoreCreateInfo semaphore_create_info = {};
     semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     semaphore_create_info.pNext = nullptr;
@@ -227,8 +231,7 @@ void VulkanEngine::init_sync_structures() {
     VK_CHECK(vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &_renderSemaphore));
 }
 
-bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out_shader_module) {
-
+bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out_shader_module) const {
     // Load the shader from the file
     std::ifstream file(file_path, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
@@ -236,10 +239,10 @@ bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out
     }
 
     // Get the size of the file
-    size_t file_size = file.tellg();
+    auto file_size = file.tellg();
     std::vector<uint32_t> buffer(file_size / sizeof(uint32_t));
     file.seekg(0);
-    file.read((char *) buffer.data(), file_size);
+    file.read(reinterpret_cast<char *>(buffer.data()), file_size);
     file.close();
 
     // Create a new shader module using the loaded buffer
@@ -284,17 +287,20 @@ void VulkanEngine::init_pipelines() {
     VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_create_info, nullptr, &_trianglePipelineLayout));
 
     PipelineBuilder pipeline_builder;
-    pipeline_builder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangle_vertex_shader));
-    pipeline_builder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangle_fragment_shader));
+    pipeline_builder._shaderStages.push_back(
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangle_vertex_shader));
+    pipeline_builder._shaderStages.push_back(
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangle_fragment_shader));
     pipeline_builder._vertexInputInfo = vkinit::pipeline_vertex_input_state_create_info();
-    pipeline_builder._inputAssembly = vkinit::pipeline_input_assembly_state_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    pipeline_builder._inputAssembly = vkinit::pipeline_input_assembly_state_create_info(
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     pipeline_builder._viewport.x = 0.0f;
     pipeline_builder._viewport.y = 0.0f;
     pipeline_builder._viewport.width = static_cast<float>(_windowExtent.width);
     pipeline_builder._viewport.height = static_cast<float>(_windowExtent.height);
     pipeline_builder._viewport.minDepth = 0.0f;
     pipeline_builder._viewport.maxDepth = 1.0f;
-    pipeline_builder._scissor.offset = {0,0,};
+    pipeline_builder._scissor.offset = {0, 0,};
     pipeline_builder._scissor.extent = _windowExtent;
     pipeline_builder._rasterizer = vkinit::pipeline_rasterization_state_create_info(VK_POLYGON_MODE_FILL);
     pipeline_builder._multisampling = vkinit::pipeline_multisample_state_create_info();
@@ -303,8 +309,8 @@ void VulkanEngine::init_pipelines() {
     _trianglePipeline = pipeline_builder.build_pipeline(_device, _renderPass);
 }
 
-VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderpass) {
-
+VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderpass) const {
+    // The parameters for the viewport and scissor settings, which defines how the scene is projected
     VkPipelineViewportStateCreateInfo viewport_state_create_info = {};
     viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewport_state_create_info.pNext = nullptr;
@@ -313,6 +319,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderp
     viewport_state_create_info.scissorCount = 1;
     viewport_state_create_info.pScissors = &_scissor;
 
+    // The parameters for the color mixture settings
     VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
     color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     color_blend_state_create_info.pNext = nullptr;
@@ -321,6 +328,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderp
     color_blend_state_create_info.attachmentCount = 1;
     color_blend_state_create_info.pAttachments = &_colorBlendAttachment;
 
+    // The parameters for the graphics pipeline
     VkGraphicsPipelineCreateInfo pipeline_create_info = {};
     pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipeline_create_info.pNext = nullptr;
@@ -337,18 +345,19 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderp
     pipeline_create_info.subpass = 0;
     pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
 
+    // Assure the instantiation of the graphics pipeline instantiation
     VkPipeline new_pipeline;
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &new_pipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &new_pipeline) !=
+        VK_SUCCESS) {
         std::cout << "Failed to create graphics pipeline" << std::endl;
         return VK_NULL_HANDLE;
     }
-    else {
-        return new_pipeline;
-    }
+
+    return new_pipeline;
 }
 
 
-void VulkanEngine::cleanup() {
+void VulkanEngine::cleanup() const {
     if (_isInitialized) {
         // Destroy the command pool
         vkDestroyCommandPool(_device, _commandPool, nullptr);
@@ -415,11 +424,14 @@ void VulkanEngine::draw() {
     render_pass_create_info.clearValueCount = 1;
     render_pass_create_info.pClearValues = &clear_value;
 
+    // Start the render pass
     vkCmdBeginRenderPass(command_buffer, &render_pass_create_info, VK_SUBPASS_CONTENTS_INLINE);
 
+    // Initialize the pipeline and bind it to the command buffer
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
     vkCmdDraw(command_buffer, 3, 1, 0, 0);
 
+    // End the render pass
     vkCmdEndRenderPass(command_buffer);
 
     VK_CHECK(vkEndCommandBuffer(command_buffer));
@@ -429,6 +441,7 @@ void VulkanEngine::draw() {
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
 
+    // Define the pipeline stages to be used
     VkPipelineStageFlags wait_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     submit_info.pWaitDstStageMask = &wait_stage_flags;
     submit_info.waitSemaphoreCount = 1;
@@ -440,6 +453,7 @@ void VulkanEngine::draw() {
 
     VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit_info, _renderFence));
 
+    // Define how images from the swapchain are projected on the monitor
     VkPresentInfoKHR present_info = {};
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present_info.pNext = nullptr;

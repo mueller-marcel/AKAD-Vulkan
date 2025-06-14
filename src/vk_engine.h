@@ -15,7 +15,7 @@ class PipelineBuilder {
 	VkPipelineMultisampleStateCreateInfo _multisampling;
 	VkPipelineLayout _pipelineLayout;
 
-	VkPipeline build_pipeline(VkDevice device, VkRenderPass renderpass);
+	VkPipeline build_pipeline(VkDevice device, VkRenderPass renderpass) const;
 };
 
 /**
@@ -25,7 +25,7 @@ class PipelineBuilder {
 class VulkanEngine {
 private :
 	/**
-	 * Initializes the Vulkan API and performs necessary setup required for
+	 * Initializes the Vulkan API and performs the necessary setup required for
 	 * creating a Vulkan rendering context, including instance creation,
 	 * validation layers setup, and other essential configurations.
 	 */
@@ -61,11 +61,11 @@ private :
 
 	/**
 	 * Loads the shaders
-	 * @param file_path The shaders file path
+	 * @param file_path The shader's file path
 	 * @param out_shader_module The pointer to the loaded shader module
 	 * @return Indicates whether the shader was loaded successfully
 	 */
-	bool load_shader_module(const char* file_path, VkShaderModule* out_shader_module);
+	bool load_shader_module(const char* file_path, VkShaderModule* out_shader_module) const;
 
 	/**
 	 * Initialize the render pipeline
@@ -157,14 +157,14 @@ public:
 
 	/**
 	 * Stores the index of the queue family within a Vulkan physical device
-	 * that supports graphics operations. This index is utilized to assign
+	 * that supports graphics operations. This index is used to assign
 	 * and manage the graphics queue for rendering tasks.
 	 */
 	uint32_t _graphicsQueueFamilyIndex;
 
 	/**
 	 * A Vulkan command pool used for managing the allocation of command buffers,
-	 * which are utilized for recording commands to be submitted to a GPU queue.
+	 * which are used for recording commands to be submitted to a GPU queue.
 	 */
 	VkCommandPool _commandPool;
 
@@ -184,14 +184,29 @@ public:
 	 */
 	std::vector<VkFramebuffer> _framebuffers;
 
+	/**
+	 * The current semaphore for the parallel process
+	 */
 	VkSemaphore _presentSemaphore;
 
+	/**
+	 * The semaphore for the rendering
+	 */
 	VkSemaphore _renderSemaphore;
 
+	/**
+	 * The render fence used for the synchronization between the queue and the cpu
+	 */
 	VkFence _renderFence;
 
+	/**
+	 * The render pipeline for the triangle
+	 */
 	VkPipeline _trianglePipeline;
 
+	/**
+	 * The layout for the pipeline used to render the triangle
+	 */
 	VkPipelineLayout _trianglePipelineLayout;
 
 	/**
@@ -210,7 +225,7 @@ public:
 	 * Initializes the Vulkan rendering engine.
 	 *
 	 * This method sets up the necessary resources and states required for the Vulkan engine,
-	 * including the initialization of the SDL library, creation of a window with Vulkan support,
+	 * including the initialization of the SDL library, creation of a window with Vulkan support
 	 * and registering the current engine instance to ensure single initialization.
 	 *
 	 * It ensures that only one Vulkan engine instance can be initialized per application session.
@@ -240,7 +255,7 @@ public:
 	 * - The global engine pointer (loadedEngine) is set to nullptr.
 	 * - The Vulkan engine is no longer operational after cleanup.
 	 */
-	void cleanup();
+	void cleanup() const;
 
 	/**
 	 * Executes the rendering process for the Vulkan engine.
