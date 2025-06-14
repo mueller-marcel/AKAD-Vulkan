@@ -3,18 +3,63 @@
 #include <vk_types.h>
 #include <vector>
 
+/**
+ * Class to construct the pipeline using the builder pattern
+ */
 class PipelineBuilder {
 	public:
+
+	/**
+	 * The shader stages of the pipeline builder
+	 */
 	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
+
+	/**
+	 * The vertex input of the pipeline builder
+	 */
 	VkPipelineVertexInputStateCreateInfo _vertexInputInfo;
+
+	/**
+	 * The input assembly of the pipeline builder
+	 */
 	VkPipelineInputAssemblyStateCreateInfo _inputAssembly;
+
+	/**
+	 * The viewport of the pipeline builder
+	 */
 	VkViewport _viewport;
+
+	/**
+	 * The scissors of the pipeline builder
+	 */
 	VkRect2D _scissor;
+
+	/**
+	 * The rasterizer of the pipeline builder
+	 */
 	VkPipelineRasterizationStateCreateInfo _rasterizer;
+
+	/**
+	 * The color blend attachment of the pipeline builder
+	 */
 	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
+
+	/**
+	 * The multisampling of the pipeline builder
+	 */
 	VkPipelineMultisampleStateCreateInfo _multisampling;
+
+	/**
+	 * The pipeline layout of the pipeline builder
+	 */
 	VkPipelineLayout _pipelineLayout;
 
+	/**
+	 * Build the pipeline
+	 * @param device The device to build the pipeline for
+	 * @param renderpass The render pass of the pipeline
+	 * @return
+	 */
 	VkPipeline build_pipeline(VkDevice device, VkRenderPass renderpass) const;
 };
 
