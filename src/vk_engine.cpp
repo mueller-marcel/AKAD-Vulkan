@@ -128,6 +128,11 @@ void VulkanEngine::init_swapchain() {
     _swapchainImages = vkb_swapchain.get_images().value();
     _swapchainImageViews = vkb_swapchain.get_image_views().value();
     _swapchainImageFormat = vkb_swapchain.image_format;
+
+    // Add the swapchain to the queue to be deleted
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+    });
 }
 
 void VulkanEngine::init_commands() {
@@ -141,6 +146,11 @@ void VulkanEngine::init_commands() {
     VkCommandBufferAllocateInfo command_buffer_allocate_info = vkinit::command_buffer_allocate_info(_commandPool, 1);
 
     VK_CHECK(vkAllocateCommandBuffers(_device, &command_buffer_allocate_info, &_commandBuffer));
+
+    // Add the command pools to the deletion queue
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroyCommandPool(_device, _commandPool, nullptr);
+    });
 }
 
 void VulkanEngine::init_default_renderpass() {
@@ -188,6 +198,11 @@ void VulkanEngine::init_default_renderpass() {
     render_pass_create_info.pSubpasses = &subpass;
 
     VK_CHECK(vkCreateRenderPass(_device, &render_pass_create_info, nullptr, &_renderPass));
+
+    // Add the renderpass to deletion queue for later deletion
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroyRenderPass(_device, _renderPass, nullptr);
+    });
 }
 
 void VulkanEngine::init_framebuffers() {
@@ -209,6 +224,12 @@ void VulkanEngine::init_framebuffers() {
     for (uint32_t i = 0; i < swapchain_image_count; i++) {
         framebuffer_create_info.pAttachments = &_swapchainImageViews[i];
         VK_CHECK(vkCreateFramebuffer(_device, &framebuffer_create_info, nullptr, &_framebuffers[i]));
+
+        // Add each framebuffer to the deletion queue
+        _mainDeletionQueue.push_function([=, this]() {
+            vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
+            vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+        });
     }
 }
 
@@ -229,6 +250,12 @@ void VulkanEngine::init_sync_structures() {
 
     VK_CHECK(vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &_presentSemaphore));
     VK_CHECK(vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &_renderSemaphore));
+
+    // Add the sync structures to the deletion queue
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroySemaphore(_device, _presentSemaphore, nullptr);
+        vkDestroySemaphore(_device, _renderSemaphore, nullptr);
+    });
 }
 
 bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out_shader_module) const {
@@ -307,6 +334,16 @@ void VulkanEngine::init_pipelines() {
     pipeline_builder._colorBlendAttachment = vkinit::pipeline_color_blend_attachment_state();
     pipeline_builder._pipelineLayout = _trianglePipelineLayout;
     _trianglePipeline = pipeline_builder.build_pipeline(_device, _renderPass);
+
+    // Destroy all shader modules, outside the queue
+    vkDestroyShaderModule(_device, triangle_vertex_shader, nullptr);
+    vkDestroyShaderModule(_device, triangle_fragment_shader, nullptr);
+
+    // Destroy the pipeline
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+        vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+    });
 }
 
 VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderpass) const {
@@ -357,23 +394,15 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderp
 }
 
 
-void VulkanEngine::cleanup() const {
+void VulkanEngine::cleanup() {
     if (_isInitialized) {
-        // Destroy the command pool
-        vkDestroyCommandPool(_device, _commandPool, nullptr);
+        // Make sure the GPU has stopped
+        vkWaitForFences(_device, 1, &_renderFence, true, 1000000000);
 
-        // Destroy the swapchain and its images
-        vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+        // Flush the deletion queue to remove all resources
+        _mainDeletionQueue.flush();
 
-        // Destroy the renderpass
-        vkDestroyRenderPass(_device, _renderPass, nullptr);
-
-        // Destroy framebuffers and swapchain images
-        for (int i = 0; i < _framebuffers.size(); i++) {
-            vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
-            vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
-        }
-
+        // Destroy other resources that are not captured by the deletion queue
         vkDestroyDevice(_device, nullptr);
         vkDestroySurfaceKHR(_instance, _surface, nullptr);
         vkb::destroy_debug_utils_messenger(_instance, _debugMessenger);
