@@ -1,7 +1,39 @@
 ﻿#pragma once
 
-#include <vk_types.h>
+#include <deque>
+#include <functional>
+#include <ranges>
 #include <vector>
+#include <vk_types.h>
+
+/**
+ * A queue to manage the cleanup
+ */
+struct DeletionQueue {
+	/**
+	 * A queue of functions to be executed to clean up all resources
+	 */
+	std::deque<std::function<void()>> _deletors;
+
+	/**
+	 * Add a new cleanup function to the queue
+	 * @param function The function used to clean up
+	 */
+	void push_function(std::function<void()>&& function) {
+		_deletors.push_back(function);
+	}
+
+	/**
+	 * Execute the functions in the queue to perform the cleanup
+	 */
+	void flush() {
+		for (auto & _deletor : std::ranges::reverse_view(_deletors)) {
+			_deletor();
+		}
+
+		_deletors.clear();
+	}
+};
 
 /**
  * Class to construct the pipeline using the builder pattern
@@ -255,6 +287,11 @@ public:
 	VkPipelineLayout _trianglePipelineLayout;
 
 	/**
+	 * The cleanup queue to delete all vulkan resources
+	 */
+	DeletionQueue _mainDeletionQueue;
+
+	/**
 	 * The SDL window used as the main rendering target and interface for the Vulkan engine.
 	 * Serves as the platform-specific window connected to the Vulkan surface for presenting rendered images.
 	 */
@@ -300,7 +337,7 @@ public:
 	 * - The global engine pointer (loadedEngine) is set to nullptr.
 	 * - The Vulkan engine is no longer operational after cleanup.
 	 */
-	void cleanup() const;
+	void cleanup();
 
 	/**
 	 * Executes the rendering process for the Vulkan engine.
