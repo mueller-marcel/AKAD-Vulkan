@@ -4,9 +4,25 @@
 #include <functional>
 #include <ranges>
 #include <vector>
+#include <vk_mesh.h>
 #include <vk_types.h>
 
-#include "vk_mesh.h"
+#include "glm/glm.hpp"
+
+/**
+ * Represents a push constant
+ */
+struct MeshPushConstants {
+	/**
+	 * The data of the push constant
+	 */
+	glm::vec4 data;
+
+	/**
+	 * The render matrix of the push constant
+	 */
+	glm::mat4 render_matrix;
+};
 
 /**
  * A queue to manage the cleanup
@@ -301,6 +317,11 @@ public:
 	 * The rendering pipeline for the meshes
 	 */
 	VkPipeline _meshPipeline;
+
+	/**
+	 * The pipeline layout for the mesh pipeline
+	 */
+	VkPipelineLayout _meshPipelineLayout;
 
 	/**
 	 * Contains the mesh of the triangle

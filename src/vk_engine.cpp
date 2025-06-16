@@ -1,13 +1,14 @@
 ﻿#include "vk_engine.h"
-#include <SDL.h>
-#include <SDL_vulkan.h>
-#include <vk_initializers.h>
-#include <vk_types.h>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <SDL.h>
+#include <SDL_vulkan.h>
 #include <thread>
 #include <VkBootstrap.h>
+#include <vk_initializers.h>
+#include <vk_types.h>
+#include <glm/gtx/transform.hpp>
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
@@ -381,6 +382,25 @@ void VulkanEngine::init_pipelines() {
     pipeline_builder._shaderStages.push_back(
         vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangle_fragment_shader));
 
+    // Create the pipeline layout for the mesh pipeline
+    VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+
+    // Setup push constants
+    VkPushConstantRange push_constant;
+    push_constant.offset = 0;
+    push_constant.size = sizeof(MeshPushConstants);
+    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // Connect the push constant to the pipeline layout
+    mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
+    mesh_pipeline_layout_info.pushConstantRangeCount = 1;
+
+    // Instantiate the pipeline layout for the mesh pipeline
+    VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info, nullptr, &_meshPipelineLayout));
+
+    // Hook the pipeline layout to the mesh pipeline
+    pipeline_builder._pipelineLayout = _meshPipelineLayout;
+
     // Build the mesh pipeline
     _meshPipeline = pipeline_builder.build_pipeline(_device, _renderPass);
 
@@ -394,6 +414,7 @@ void VulkanEngine::init_pipelines() {
         vkDestroyPipeline(_device, _trianglePipeline, nullptr);
         vkDestroyPipeline(_device, _meshPipeline, nullptr);
         vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+        vkDestroyPipelineLayout(_device, _meshPipelineLayout, nullptr);
     });
 }
 
@@ -495,6 +516,7 @@ void VulkanEngine::cleanup() {
     if (_isInitialized) {
         // Make sure the GPU has stopped
         vkDeviceWaitIdle(_device);
+
         // Flush the deletion queue to remove all resources
         _mainDeletionQueue.flush();
 
@@ -553,6 +575,25 @@ void VulkanEngine::draw() {
     // Bind the mesh buffer and draw the vertices
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(command_buffer, 0, 1, &_triangleMesh._vertexBuffer._buffer, &offset);
+
+    // Define the camera position, the view and the projection for the rotation
+    glm::vec3 camera_position = { 0.f,0.f,-2.f };
+    glm::mat4 view = glm::translate(glm::mat4(1.f), camera_position);
+    glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
+    glm::mat4 model = glm::rotate(glm::mat4{ 1.0f }, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
+
+    // Calculate mesh matrix
+    glm::mat4 mesh_matrix = projection * view * model;
+
+    // Initialize the push constants with the render matrix
+    MeshPushConstants constants = {};
+    constants.render_matrix = mesh_matrix;
+
+    // Upload the matrix to the GPU via push constants
+    vkCmdPushConstants(command_buffer, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+
+    // Draw the mesh
     vkCmdDraw(command_buffer, _triangleMesh._vertices.size(), 1, 0, 0);
 
     // End the render pass
