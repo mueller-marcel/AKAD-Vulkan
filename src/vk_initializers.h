@@ -66,42 +66,54 @@ namespace vkinit {
      */
     VkPipelineLayoutCreateInfo pipeline_layout_create_info();
 
+    /**
+     * Defines the buffer begin info
+     * @param flags The flags for the buffer begin info
+     * @return The parameters for the instantiation of the command buffer begin
+     */
+    VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags = 0);
 
-VkCommandBufferBeginInfo command_buffer_begin_info(VkCommandBufferUsageFlags flags = 0);
-VkCommandBufferSubmitInfo command_buffer_submit_info(VkCommandBuffer cmd);
+    /**
+     * Initializes the fence for the synchronization structures
+     * @param flags The flags for the fence
+     * @return The parameters for the instantiation of the fence
+     */
+    VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags = 0);
 
-VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags = 0);
+    /**
+     * Initializes semaphore as a synchronization structure
+     * @param flags The flags for the semaphore
+     * @return the parameters for the instantiation of the semaphore
+     */
+    VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags = 0);
 
-VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags = 0);
-
+    /**
+     * Initializes the submit-queue for the command buffer
+     * @param command_buffer The command buffer of the submit-queue
+     * @return The parameters for the instantiation of the submit-queue
+     */
     VkSubmitInfo submit_info(VkCommandBuffer* command_buffer);
-VkPresentInfoKHR present_info();
 
-VkRenderingAttachmentInfo attachment_info(VkImageView view, const VkClearValue* clear, VkImageLayout layout /*= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL*/);
+    /**
+     * Initializes the presentation of the images
+     * @return The parameters for the instantiation of the presentation of the images
+     */
+    VkPresentInfoKHR present_info();
 
-VkRenderingAttachmentInfo depth_attachment_info(VkImageView view,
-    VkImageLayout layout /*= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL*/);
+    /**
+     * Initializes a framebuffer
+     * @param renderPass The renderpass
+     * @param vk_extent_2d The extent of the framebuffer
+     * @return The parameters for the instantiation of the framebuffers
+     */
+    VkFramebufferCreateInfo framebuffer_create_info(VkRenderPass renderPass, VkExtent2D vk_extent_2d);
 
-VkRenderingInfo rendering_info(VkExtent2D renderExtent, const VkRenderingAttachmentInfo* colorAttachment,
-    const VkRenderingAttachmentInfo* depthAttachment);
-
-VkImageSubresourceRange image_subresource_range(VkImageAspectFlags aspectMask);
-
-VkSemaphoreSubmitInfo semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
-VkDescriptorSetLayoutBinding descriptor_set_layout_binding(VkDescriptorType type, VkShaderStageFlags stageFlags,
-    uint32_t binding);
-VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info(const VkDescriptorSetLayoutBinding* bindings,
-    uint32_t bindingCount);
-VkWriteDescriptorSet write_descriptor_image(VkDescriptorType type, VkDescriptorSet dstSet,
-    const VkDescriptorImageInfo* imageInfo, uint32_t binding);
-VkWriteDescriptorSet write_descriptor_buffer(VkDescriptorType type, VkDescriptorSet dstSet,
-    const VkDescriptorBufferInfo* bufferInfo, uint32_t binding);
-VkDescriptorBufferInfo buffer_info(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
-
-VkImageCreateInfo image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
-VkImageViewCreateInfo imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
-
-VkFramebufferCreateInfo framebuffer_create_info(VkRenderPass renderPass, VkExtent2D vk_extent_2d);
-
-VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass render_pass, VkExtent2D windowExtent, VkFramebuffer framebuffer);
+    /**
+     * Initializes the start of the render pass
+     * @param render_pass The renderpass to be started
+     * @param windowExtent The extent of the window
+     * @param framebuffer The framebuffer
+     * @return The parameters for the instantiation of the start of the renderpass
+     */
+    VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass render_pass, VkExtent2D windowExtent, VkFramebuffer framebuffer);
 }
