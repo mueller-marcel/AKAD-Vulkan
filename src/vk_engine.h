@@ -6,6 +6,8 @@
 #include <vector>
 #include <vk_types.h>
 
+#include "vk_mesh.h"
+
 /**
  * A queue to manage the cleanup
  */
@@ -149,6 +151,10 @@ private :
 	 */
 	void init_pipelines();
 
+	void load_meshes();
+
+	void upload_mesh(Mesh& mesh);
+
 public:
 	/**
 	 * Indicates whether the engine is initialized
@@ -285,6 +291,21 @@ public:
 	 * The layout for the pipeline used to render the triangle
 	 */
 	VkPipelineLayout _trianglePipelineLayout;
+
+	/**
+	 * The allocator for the vulkan memory management
+	 */
+	VmaAllocator _allocator;
+
+	/**
+	 * The rendering pipeline for the meshes
+	 */
+	VkPipeline _meshPipeline;
+
+	/**
+	 * Contains the mesh of the triangle
+	 */
+	Mesh _triangleMesh;
 
 	/**
 	 * The cleanup queue to delete all vulkan resources

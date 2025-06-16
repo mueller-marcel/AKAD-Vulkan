@@ -9,6 +9,9 @@
 #include <thread>
 #include <VkBootstrap.h>
 
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 using namespace std;
 
 #define VK_CHECK(x)                                                                 \
@@ -64,6 +67,8 @@ void VulkanEngine::init() {
     // Initialize the pipelines
     init_pipelines();
 
+    load_meshes();
+
     // everything went fine
     _isInitialized = true;
 }
@@ -106,6 +111,16 @@ void VulkanEngine::init_vulkan() {
     // Get the graphics queue
     _graphicsQueue = vkb_device.get_queue(vkb::QueueType::graphics).value();
     _graphicsQueueFamilyIndex = vkb_device.get_queue_index(vkb::QueueType::graphics).value();
+
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = _chosenGPU;
+    allocatorInfo.device = _device;
+    allocatorInfo.instance = _instance;
+    vmaCreateAllocator(&allocatorInfo, &_allocator);
+
+    _mainDeletionQueue.push_function([&]() {
+        vmaDestroyAllocator(_allocator);
+    });
 }
 
 void VulkanEngine::init_swapchain() {
@@ -265,7 +280,7 @@ bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out
     }
 
     // Get the size of the file
-    size_t file_size = file.tellg();
+    auto file_size = file.tellg();
     std::vector<uint32_t> buffer(file_size / sizeof(uint32_t));
     file.seekg(0);
     file.read(reinterpret_cast<char *>(buffer.data()), file_size);
@@ -338,15 +353,94 @@ void VulkanEngine::init_pipelines() {
     pipeline_builder._pipelineLayout = _trianglePipelineLayout;
     _trianglePipeline = pipeline_builder.build_pipeline(_device, _renderPass);
 
-    // Destroy all shader modules, outside the queue
-    vkDestroyShaderModule(_device, triangle_vertex_shader, nullptr);
-    vkDestroyShaderModule(_device, triangle_fragment_shader, nullptr);
+    // Get the vertex input description
+    VertexInputDescription vertexDescription = Vertex::get_vertex_description();
 
-    // Destroy the pipeline
+    // Connect the pipeline builder vertex input info to the vertex input description
+    pipeline_builder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
+    pipeline_builder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
+    pipeline_builder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
+    pipeline_builder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
+
+    // Clear the shader stages for the builder
+    pipeline_builder._shaderStages.clear();
+
+    // Load the shader module
+    VkShaderModule mesh_vertex_shader;
+    if (!load_shader_module("../shaders/triangle_mesh.vert.spv", &mesh_vertex_shader)) {
+        std::cout << "Error when building the triangle vertex shader module" << std::endl;
+    } else {
+        std::cout << "Red Triangle vertex shader successfully loaded" << std::endl;
+    }
+
+    // Add the shaders to the shader stages
+    pipeline_builder._shaderStages.push_back(
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, mesh_vertex_shader));
+
+    // Ensure that the fragment shader is part of the shader stage
+    pipeline_builder._shaderStages.push_back(
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangle_fragment_shader));
+
+    // Build the mesh pipeline
+    _meshPipeline = pipeline_builder.build_pipeline(_device, _renderPass);
+
+    // Destruct the shader modules
+    vkDestroyShaderModule(_device, mesh_vertex_shader, nullptr);
+    vkDestroyShaderModule(_device, triangle_fragment_shader, nullptr);
+    vkDestroyShaderModule(_device, triangle_vertex_shader, nullptr);
+
+    // Queue the pipeline and the pipeline layout for destruction
     _mainDeletionQueue.push_function([=, this]() {
         vkDestroyPipeline(_device, _trianglePipeline, nullptr);
+        vkDestroyPipeline(_device, _meshPipeline, nullptr);
         vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
     });
+}
+
+void VulkanEngine::load_meshes() {
+    // Trim the vertices array to the size of 3
+    _triangleMesh._vertices.resize(3);
+
+    // Define the position of the vertices
+    _triangleMesh._vertices[0].position = {1.f, 1.f, 0.0f};
+    _triangleMesh._vertices[1].position = {-1.f, 1.f, 0.0f};
+    _triangleMesh._vertices[2].position = {0.f, -1.f, 0.0f};
+
+    // Define the color of the vertices
+    _triangleMesh._vertices[0].color = {0.f, 1.f, 0.0f};
+    _triangleMesh._vertices[1].color = {0.f, 1.f, 0.0f};
+    _triangleMesh._vertices[2].color = {0.f, 1.f, 0.0f};
+
+    upload_mesh(_triangleMesh);
+}
+
+void VulkanEngine::upload_mesh(Mesh &mesh) {
+    // Parametrize the allocation of the buffer instantiation
+    VkBufferCreateInfo buffer_create_info = {};
+    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_info.size = mesh._vertices.size() * sizeof(Vertex);
+    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+    // Data shall be writable by the CPU and readable by the GPU
+    VmaAllocationCreateInfo vma_allocation_create_info = {};
+    vma_allocation_create_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+    // Allocate the buffer
+    VK_CHECK(vmaCreateBuffer(_allocator, &buffer_create_info, &vma_allocation_create_info,
+        &mesh._vertexBuffer._buffer,
+        &mesh._vertexBuffer._allocation,
+        nullptr));
+
+    // Queue the destruction of the buffer
+    _mainDeletionQueue.push_function([=, this]() {
+        vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+    });
+
+    // Copy vertex data
+    void *data;
+    vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, &data);
+    memcpy(data, mesh._vertices.data(), mesh._vertices.size() * sizeof(Vertex));
+    vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
 }
 
 VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderpass) const {
@@ -426,11 +520,13 @@ void VulkanEngine::draw() {
 
     // Request image from the swapchain
     uint32_t swapchain_image_index;
-    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _presentSemaphore, nullptr, &swapchain_image_index));
+    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _presentSemaphore, nullptr, &swapchain_image_index))
+    ;
 
     // Begin the command buffer recording
     VkCommandBuffer command_buffer = _commandBuffer;
-    VkCommandBufferBeginInfo command_buffer_create_info = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VkCommandBufferBeginInfo command_buffer_create_info = vkinit::command_buffer_begin_info(
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_create_info));
 
@@ -441,7 +537,8 @@ void VulkanEngine::draw() {
     clear_value.color = {{0.0f, 0.0f, flash, 0.0f}};
 
     // Start the main renderpass
-    VkRenderPassBeginInfo render_pass_create_info = vkinit::render_pass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchain_image_index]);
+    VkRenderPassBeginInfo render_pass_create_info = vkinit::render_pass_begin_info(
+        _renderPass, _windowExtent, _framebuffers[swapchain_image_index]);
 
     // Connect clear values
     render_pass_create_info.clearValueCount = 1;
@@ -451,8 +548,12 @@ void VulkanEngine::draw() {
     vkCmdBeginRenderPass(command_buffer, &render_pass_create_info, VK_SUBPASS_CONTENTS_INLINE);
 
     // Initialize the pipeline and bind it to the command buffer
-    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
-    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+
+    // Bind the mesh buffer and draw the vertices
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &_triangleMesh._vertexBuffer._buffer, &offset);
+    vkCmdDraw(command_buffer, _triangleMesh._vertices.size(), 1, 0, 0);
 
     // End the render pass
     vkCmdEndRenderPass(command_buffer);

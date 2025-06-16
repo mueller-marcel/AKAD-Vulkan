@@ -7,6 +7,8 @@ add_executable(engine
         vk_initializers.h
         vk_engine.h
         vk_engine.cpp
+        vk_mesh.h
+        vk_mesh.cpp
 )
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)
