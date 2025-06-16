@@ -44,6 +44,7 @@ VkSemaphoreCreateInfo vkinit::semaphore_create_info(VkSemaphoreCreateFlags flags
     info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     info.pNext = nullptr;
     info.flags = flags;
+
     return info;
 }
 
@@ -69,17 +70,17 @@ VkCommandBufferSubmitInfo vkinit::command_buffer_submit_info(VkCommandBuffer cmd
     return info;
 }
 
-VkSubmitInfo2 vkinit::submit_info(const VkCommandBufferSubmitInfo *cmd, const VkSemaphoreSubmitInfo *signalSemaphoreInfo,
-                                  const VkSemaphoreSubmitInfo *waitSemaphoreInfo) {
-    VkSubmitInfo2 info = {};
-    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+VkSubmitInfo vkinit::submit_info(VkCommandBuffer* command_buffer) {
+    VkSubmitInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     info.pNext = nullptr;
-    info.waitSemaphoreInfoCount = waitSemaphoreInfo == nullptr ? 0 : 1;
-    info.pWaitSemaphoreInfos = waitSemaphoreInfo;
-    info.signalSemaphoreInfoCount = signalSemaphoreInfo == nullptr ? 0 : 1;
-    info.pSignalSemaphoreInfos = signalSemaphoreInfo;
-    info.commandBufferInfoCount = 1;
-    info.pCommandBufferInfos = cmd;
+    info.waitSemaphoreCount = 0;
+    info.pWaitSemaphores = nullptr;
+    info.pWaitDstStageMask = nullptr;
+    info.commandBufferCount = 1;
+    info.pCommandBuffers = command_buffer;
+    info.signalSemaphoreCount = 0;
+    info.pSignalSemaphores = nullptr;
 
     return info;
 }
@@ -241,6 +242,35 @@ VkImageViewCreateInfo vkinit::imageview_create_info(VkFormat format, VkImage ima
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = 1;
     info.subresourceRange.aspectMask = aspectFlags;
+
+    return info;
+}
+
+VkFramebufferCreateInfo vkinit::framebuffer_create_info(VkRenderPass renderPass, VkExtent2D extent) {
+    VkFramebufferCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    info.pNext = nullptr;
+    info.renderPass = renderPass;
+    info.attachmentCount = 1;
+    info.width = extent.width;
+    info.height = extent.height;
+    info.layers = 1;
+
+    return info;
+}
+
+VkRenderPassBeginInfo vkinit::render_pass_begin_info(VkRenderPass render_pass, VkExtent2D windowExtent,
+    VkFramebuffer framebuffer) {
+    VkRenderPassBeginInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    info.pNext = nullptr;
+    info.renderPass = render_pass;
+    info.renderArea.offset.x = 0;
+    info.renderArea.offset.y = 0;
+    info.renderArea.extent = windowExtent;
+    info.clearValueCount = 1;
+    info.pClearValues = nullptr;
+    info.framebuffer = framebuffer;
 
     return info;
 }

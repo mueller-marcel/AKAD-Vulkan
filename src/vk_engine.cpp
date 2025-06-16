@@ -25,10 +25,6 @@ VulkanEngine *loadedEngine = nullptr;
 VulkanEngine &VulkanEngine::Get() { return *loadedEngine; }
 
 void VulkanEngine::init() {
-    // only one engine initialization is allowed with the application.
-    assert(loadedEngine == nullptr);
-    loadedEngine = this;
-
     // We initialize SDL and create a window with it.
     SDL_Init(SDL_INIT_VIDEO);
 
@@ -78,7 +74,7 @@ void VulkanEngine::init_vulkan() {
     // Create a vulkan instance with basic debug features
     auto inst_ret = builder
             .set_app_name("Colored Triangle")
-            .request_validation_layers(true)
+            .request_validation_layers()
             .require_api_version(1, 1, 0)
             .use_default_debug_messenger()
             .build();
@@ -189,6 +185,15 @@ void VulkanEngine::init_default_renderpass() {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
+    // Create a dependency to the subpass
+    VkSubpassDependency subpass_dependency = {};
+    subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    subpass_dependency.dstSubpass = 0;
+    subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.srcAccessMask = 0;
+    subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     // Connect the color attachment to the info
     VkRenderPassCreateInfo render_pass_create_info = {};
     render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -196,6 +201,8 @@ void VulkanEngine::init_default_renderpass() {
     render_pass_create_info.pAttachments = &color_attachment;
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &subpass;
+    render_pass_create_info.dependencyCount = 1;
+    render_pass_create_info.pDependencies = &subpass_dependency;
 
     VK_CHECK(vkCreateRenderPass(_device, &render_pass_create_info, nullptr, &_renderPass));
 
@@ -207,17 +214,10 @@ void VulkanEngine::init_default_renderpass() {
 
 void VulkanEngine::init_framebuffers() {
     // Create the framebuffers for the swapchain images
-    VkFramebufferCreateInfo framebuffer_create_info = {};
-    framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebuffer_create_info.pNext = nullptr;
-    framebuffer_create_info.renderPass = _renderPass;
-    framebuffer_create_info.attachmentCount = 1;
-    framebuffer_create_info.width = _windowExtent.width;
-    framebuffer_create_info.height = _windowExtent.height;
-    framebuffer_create_info.layers = 1;
+    VkFramebufferCreateInfo framebuffer_create_info = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
 
     // Grab the images for the swapchain
-    const uint32_t swapchain_image_count = _swapchainImageViews.size();
+    const uint32_t swapchain_image_count = _swapchainImages.size();
     _framebuffers = std::vector<VkFramebuffer>(swapchain_image_count);
 
     // Create framebuffers for each of the swapchain image views
@@ -235,18 +235,17 @@ void VulkanEngine::init_framebuffers() {
 
 void VulkanEngine::init_sync_structures() {
     // Create the synchronization structures
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_create_info.pNext = nullptr;
-    fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    VkFenceCreateInfo fence_create_info = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
 
     VK_CHECK(vkCreateFence(_device, &fence_create_info, nullptr, &_renderFence));
 
+    // Queue the fence for the deletion queue
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroyFence(_device, _renderFence, nullptr);
+    });
+
     // The parameters for the semaphore instantiation
-    VkSemaphoreCreateInfo semaphore_create_info = {};
-    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphore_create_info.pNext = nullptr;
-    semaphore_create_info.flags = 0;
+    VkSemaphoreCreateInfo semaphore_create_info = vkinit::semaphore_create_info(0);
 
     VK_CHECK(vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &_presentSemaphore));
     VK_CHECK(vkCreateSemaphore(_device, &semaphore_create_info, nullptr, &_renderSemaphore));
@@ -266,7 +265,7 @@ bool VulkanEngine::load_shader_module(const char *file_path, VkShaderModule *out
     }
 
     // Get the size of the file
-    auto file_size = file.tellg();
+    size_t file_size = file.tellg();
     std::vector<uint32_t> buffer(file_size / sizeof(uint32_t));
     file.seekg(0);
     file.read(reinterpret_cast<char *>(buffer.data()), file_size);
@@ -314,11 +313,15 @@ void VulkanEngine::init_pipelines() {
     VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_create_info, nullptr, &_trianglePipelineLayout));
 
     PipelineBuilder pipeline_builder;
+
     pipeline_builder._shaderStages.push_back(
         vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangle_vertex_shader));
+
     pipeline_builder._shaderStages.push_back(
         vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangle_fragment_shader));
+
     pipeline_builder._vertexInputInfo = vkinit::pipeline_vertex_input_state_create_info();
+
     pipeline_builder._inputAssembly = vkinit::pipeline_input_assembly_state_create_info(
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     pipeline_builder._viewport.x = 0.0f;
@@ -341,7 +344,7 @@ void VulkanEngine::init_pipelines() {
 
     // Destroy the pipeline
     _mainDeletionQueue.push_function([=, this]() {
-        vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+        vkDestroyPipeline(_device, _trianglePipeline, nullptr);
         vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
     });
 }
@@ -397,8 +400,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderp
 void VulkanEngine::cleanup() {
     if (_isInitialized) {
         // Make sure the GPU has stopped
-        vkWaitForFences(_device, 1, &_renderFence, true, 1000000000);
-
+        vkDeviceWaitIdle(_device);
         // Flush the deletion queue to remove all resources
         _mainDeletionQueue.flush();
 
@@ -416,22 +418,19 @@ void VulkanEngine::cleanup() {
 
 void VulkanEngine::draw() {
     // Wait for the GPU to render the last frame with a timeout of 1 second
-    VK_CHECK(vkWaitForFences(_device, 1, &_renderFence, VK_TRUE, UINT64_MAX));
+    VK_CHECK(vkWaitForFences(_device, 1, &_renderFence, VK_TRUE, 1000000000));
     VK_CHECK(vkResetFences(_device, 1, &_renderFence));
+
+    // Reset the command buffer
+    VK_CHECK(vkResetCommandBuffer(_commandBuffer, 0));
 
     // Request image from the swapchain
     uint32_t swapchain_image_index;
-    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _presentSemaphore, nullptr, &swapchain_image_index))
-    ;
-    VK_CHECK(vkResetCommandBuffer(_commandBuffer, 0));
+    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _presentSemaphore, nullptr, &swapchain_image_index));
 
     // Begin the command buffer recording
     VkCommandBuffer command_buffer = _commandBuffer;
-    VkCommandBufferBeginInfo command_buffer_create_info = {};
-    command_buffer_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_create_info.pNext = nullptr;
-    command_buffer_create_info.pInheritanceInfo = nullptr;
-    command_buffer_create_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VkCommandBufferBeginInfo command_buffer_create_info = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_create_info));
 
@@ -442,14 +441,9 @@ void VulkanEngine::draw() {
     clear_value.color = {{0.0f, 0.0f, flash, 0.0f}};
 
     // Start the main renderpass
-    VkRenderPassBeginInfo render_pass_create_info = {};
-    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_create_info.pNext = nullptr;
-    render_pass_create_info.renderPass = _renderPass;
-    render_pass_create_info.renderArea.offset.x = 0;
-    render_pass_create_info.renderArea.offset.y = 0;
-    render_pass_create_info.renderArea.extent = _windowExtent;
-    render_pass_create_info.framebuffer = _framebuffers[swapchain_image_index];
+    VkRenderPassBeginInfo render_pass_create_info = vkinit::render_pass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchain_image_index]);
+
+    // Connect clear values
     render_pass_create_info.clearValueCount = 1;
     render_pass_create_info.pClearValues = &clear_value;
 
@@ -466,26 +460,18 @@ void VulkanEngine::draw() {
     VK_CHECK(vkEndCommandBuffer(command_buffer));
 
     // Prepare the submission to the queue
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.pNext = nullptr;
-
-    // Define the pipeline stages to be used
-    VkPipelineStageFlags wait_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    submit_info.pWaitDstStageMask = &wait_stage_flags;
+    VkSubmitInfo submit_info = vkinit::submit_info(&command_buffer);
+    VkPipelineStageFlags pipeline_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    submit_info.pWaitDstStageMask = &pipeline_stage_flags;
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = &_presentSemaphore;
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &_renderSemaphore;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
 
     VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit_info, _renderFence));
 
     // Define how images from the swapchain are projected on the monitor
-    VkPresentInfoKHR present_info = {};
-    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    present_info.pNext = nullptr;
+    VkPresentInfoKHR present_info = vkinit::present_info();
     present_info.pSwapchains = &_swapchain;
     present_info.swapchainCount = 1;
     present_info.pWaitSemaphores = &_renderSemaphore;

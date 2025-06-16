@@ -74,8 +74,7 @@ VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags = 0);
 
 VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags = 0);
 
-VkSubmitInfo2 submit_info(const VkCommandBufferSubmitInfo* cmd, const VkSemaphoreSubmitInfo* signalSemaphoreInfo,
-    const VkSemaphoreSubmitInfo* waitSemaphoreInfo);
+    VkSubmitInfo submit_info(VkCommandBuffer* command_buffer);
 VkPresentInfoKHR present_info();
 
 VkRenderingAttachmentInfo attachment_info(VkImageView view, const VkClearValue* clear, VkImageLayout layout /*= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL*/);
@@ -101,4 +100,8 @@ VkDescriptorBufferInfo buffer_info(VkBuffer buffer, VkDeviceSize offset, VkDevic
 
 VkImageCreateInfo image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
 VkImageViewCreateInfo imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
+
+VkFramebufferCreateInfo framebuffer_create_info(VkRenderPass renderPass, VkExtent2D vk_extent_2d);
+
+VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass render_pass, VkExtent2D windowExtent, VkFramebuffer framebuffer);
 }
