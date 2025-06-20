@@ -1,16 +1,34 @@
 ﻿#pragma once
 
-#include <array>
-#include <deque>
-#include <functional>
-#include <memory>
-#include <optional>
-#include <span>
-#include <string>
-#include <vector>
-#include <vk_mem_alloc.h>
-#include <fmt/core.h>
-#include <glm/mat4x4.hpp>
-#include <glm/vec4.hpp>
-#include <vulkan/vk_enum_string_helper.h>
+#include "vk_mem_alloc.h"
 #include <vulkan/vulkan.h>
+
+/**
+ * Represents allocated buffer in the memory
+ */
+struct AllocatedBuffer {
+    /**
+     * The buffer
+     */
+    VkBuffer _buffer;
+
+    /**
+     * The data of the allocation
+     */
+    VmaAllocation _allocation;
+};
+
+/**
+ * Represents allocated image
+ */
+struct AllocatedImage {
+    /**
+     * The image
+     */
+    VkImage _image;
+
+    /**
+     * The data of the allocation
+     */
+    VmaAllocation _allocation;
+};

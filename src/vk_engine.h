@@ -4,7 +4,25 @@
 #include <functional>
 #include <ranges>
 #include <vector>
+#include <vk_mesh.h>
 #include <vk_types.h>
+
+#include "glm/glm.hpp"
+
+/**
+ * Represents a push constant
+ */
+struct MeshPushConstants {
+	/**
+	 * The data of the push constant
+	 */
+	glm::vec4 data;
+
+	/**
+	 * The render matrix of the push constant
+	 */
+	glm::mat4 render_matrix;
+};
 
 /**
  * A queue to manage the cleanup
@@ -87,6 +105,11 @@ class PipelineBuilder {
 	VkPipelineLayout _pipelineLayout;
 
 	/**
+	 * The parameters for the depth stencil
+	 */
+	VkPipelineDepthStencilStateCreateInfo _depthStencil;
+
+	/**
 	 * Build the pipeline
 	 * @param device The device to build the pipeline for
 	 * @param renderpass The render pass of the pipeline
@@ -148,6 +171,17 @@ private :
 	 * Initialize the render pipeline
 	 */
 	void init_pipelines();
+
+	/**
+	 * Load the meshes
+	 */
+	void load_meshes();
+
+	/**
+	 * Upload the meshes into the pipeline
+	 * @param mesh The mesh to upload
+	 */
+	void upload_mesh(Mesh& mesh);
 
 public:
 	/**
@@ -285,6 +319,46 @@ public:
 	 * The layout for the pipeline used to render the triangle
 	 */
 	VkPipelineLayout _trianglePipelineLayout;
+
+	/**
+	 * The allocator for the vulkan memory management
+	 */
+	VmaAllocator _allocator;
+
+	/**
+	 * The rendering pipeline for the meshes
+	 */
+	VkPipeline _meshPipeline;
+
+	/**
+	 * The pipeline layout for the mesh pipeline
+	 */
+	VkPipelineLayout _meshPipelineLayout;
+
+	/**
+	 * Contains the mesh of the triangle
+	 */
+	Mesh _triangleMesh;
+
+	/**
+	 * The mesh for the obj
+	 */
+	Mesh _objMesh;
+
+	/**
+	 * The image view for the depth buffer
+	 */
+	VkImageView _depthImageView;
+
+	/**
+	 * The allocated image
+	 */
+	AllocatedImage _depthImage;
+
+	/**
+	 * The format for the depth buffer
+	 */
+	VkFormat _depthFormat;
 
 	/**
 	 * The cleanup queue to delete all vulkan resources
