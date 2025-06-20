@@ -88,7 +88,7 @@ bool Mesh::load_from_obj(const char *file_name) {
                 tinyobj::real_t normal_z = vertex_attributes.normals[3 * index.normal_index + 2];
 
                 // Copy to the vertex struct
-                Vertex new_vert;
+                Vertex new_vert = {};
                 new_vert.position.x = vertex_x;
                 new_vert.position.y = vertex_y;
                 new_vert.position.z = vertex_z;

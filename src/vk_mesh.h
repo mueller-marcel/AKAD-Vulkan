@@ -19,7 +19,7 @@ struct VertexInputDescription {
     std::vector<VkVertexInputAttributeDescription> attributes;
 
     /**
-     * The vertex input state create flags
+     * The vertex input state-create flags
      */
     VkPipelineVertexInputStateCreateFlags flags = 0;
 };

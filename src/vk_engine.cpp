@@ -250,7 +250,7 @@ void VulkanEngine::init_default_renderpass() {
     subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-    // Make this subpass dependent on the previous renderpasses
+    // Make this subpass dependent on the previous render passes
     VkSubpassDependency depth_dependency = {};
     depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     depth_dependency.dstSubpass = 0;
@@ -647,7 +647,7 @@ void VulkanEngine::draw() {
     VkClearValue clearValues[] = {clearValue, depthClear};
     render_pass_begin_info.pClearValues = &clearValues[0];
 
-    // Link the command buffer to the begin render pass
+    // Link the command buffer to the beginning render pass
     vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
     // Initialize the pipeline and bind it to the command buffer
