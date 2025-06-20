@@ -63,4 +63,11 @@ struct Mesh {
      * The allocated buffer
      */
     AllocatedBuffer _vertexBuffer;
+
+    /**
+     * Loads the data from the obj-file
+     * @param file_name The file name of the obj-file to load
+     * @return A bool indicating the success of the loading
+     */
+    bool load_from_obj(const char* file_name);
 };

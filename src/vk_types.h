@@ -17,3 +17,18 @@ struct AllocatedBuffer {
      */
     VmaAllocation _allocation;
 };
+
+/**
+ * Represents allocated image
+ */
+struct AllocatedImage {
+    /**
+     * The image
+     */
+    VkImage _image;
+
+    /**
+     * The data of the allocation
+     */
+    VmaAllocation _allocation;
+};

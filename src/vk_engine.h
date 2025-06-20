@@ -105,6 +105,11 @@ class PipelineBuilder {
 	VkPipelineLayout _pipelineLayout;
 
 	/**
+	 * The parameters for the depth stencil
+	 */
+	VkPipelineDepthStencilStateCreateInfo _depthStencil;
+
+	/**
 	 * Build the pipeline
 	 * @param device The device to build the pipeline for
 	 * @param renderpass The render pass of the pipeline
@@ -167,8 +172,15 @@ private :
 	 */
 	void init_pipelines();
 
+	/**
+	 * Load the meshes
+	 */
 	void load_meshes();
 
+	/**
+	 * Upload the meshes into the pipeline
+	 * @param mesh The mesh to upload
+	 */
 	void upload_mesh(Mesh& mesh);
 
 public:
@@ -327,6 +339,26 @@ public:
 	 * Contains the mesh of the triangle
 	 */
 	Mesh _triangleMesh;
+
+	/**
+	 * The mesh for the obj
+	 */
+	Mesh _objMesh;
+
+	/**
+	 * The image view for the depth buffer
+	 */
+	VkImageView _depthImageView;
+
+	/**
+	 * The allocated image
+	 */
+	AllocatedImage _depthImage;
+
+	/**
+	 * The format for the depth buffer
+	 */
+	VkFormat _depthFormat;
 
 	/**
 	 * The cleanup queue to delete all vulkan resources

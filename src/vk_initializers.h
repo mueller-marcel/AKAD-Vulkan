@@ -92,7 +92,7 @@ namespace vkinit {
      * @param command_buffer The command buffer of the submit-queue
      * @return The parameters for the instantiation of the submit-queue
      */
-    VkSubmitInfo submit_info(VkCommandBuffer* command_buffer);
+    VkSubmitInfo submit_info(const VkCommandBuffer* command_buffer);
 
     /**
      * Initializes the presentation of the images
@@ -116,4 +116,31 @@ namespace vkinit {
      * @return The parameters for the instantiation of the start of the renderpass
      */
     VkRenderPassBeginInfo render_pass_begin_info(VkRenderPass render_pass, VkExtent2D windowExtent, VkFramebuffer framebuffer);
+
+    /**
+     * Initializes the image
+     * @param format The format of the image
+     * @param usage_flags The flags indicating the usage
+     * @param extent The extent for the 3D-image
+     * @return The parameters for the instantiation of the image
+     */
+    VkImageCreateInfo image_create_info(VkFormat format, VkImageUsageFlags usage_flags, VkExtent3D extent);
+
+    /**
+     * Initializes the image view
+     * @param format The format of the image view
+     * @param image The image of the image view
+     * @param aspect_flags The aspect flags of the image view
+     * @return The parameters for the instantiation of the image view
+     */
+    VkImageViewCreateInfo image_view_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspect_flags);
+
+    /**
+     * Initializes the depth stencil
+     * @param depth_test The depth test
+     * @param depth_write The depth-write
+     * @param compare_op The compare operation
+     * @return The parameters for the instantiation of the depth stencil
+     */
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info(bool depth_test, bool depth_write, VkCompareOp compare_op);
 }

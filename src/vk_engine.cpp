@@ -145,6 +145,42 @@ void VulkanEngine::init_swapchain() {
     _mainDeletionQueue.push_function([=, this]() {
         vkDestroySwapchainKHR(_device, _swapchain, nullptr);
     });
+
+    // Match the window extent
+    VkExtent3D depth_image_extent = {
+        _windowExtent.width,
+        _windowExtent.height,
+        1
+    };
+
+    // Depth format will be 32 bit
+    _depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    // Assign the selected format to the image
+    VkImageCreateInfo image_create_info = vkinit::image_create_info(_depthFormat,
+                                                                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                                                                    depth_image_extent);
+
+    // Allocate GPU memory
+    VmaAllocationCreateInfo allocation_create_info = {};
+    allocation_create_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    allocation_create_info.requiredFlags = static_cast<VkMemoryPropertyFlags>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    // Allocate the image
+    vmaCreateImage(_allocator, &image_create_info, &allocation_create_info, &_depthImage._image,
+                   &_depthImage._allocation, nullptr);
+
+    // Build an image view
+    VkImageViewCreateInfo image_view_create_info = vkinit::image_view_create_info(
+        _depthFormat, _depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    VK_CHECK(vkCreateImageView(_device, &image_view_create_info, nullptr, &_depthImageView));
+
+    // Queue the image and the image view for the deletion
+    _mainDeletionQueue.push_function([=, this]() {
+        vkDestroyImageView(_device, _depthImageView, nullptr);
+        vmaDestroyImage(_allocator, _depthImage._image, _depthImage._allocation);
+    });
 }
 
 void VulkanEngine::init_commands() {
@@ -167,39 +203,43 @@ void VulkanEngine::init_commands() {
 
 void VulkanEngine::init_default_renderpass() {
     VkAttachmentDescription color_attachment = {};
-
-    // Use the format needed by the swapchain
     color_attachment.format = _swapchainImageFormat;
-
-    // Initialize samples with one bit
     color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-
-    // Clear when the attachment is loaded
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-
-    // Keep the attachment when the renderpass ends
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    // Don't care about stencils
     color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    // Starting layout is undefined
     color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    // After the renderpass ends, the layout has to be ready to display
     color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    // Attachment number will index into the pAttachments array
+    // Attachment number will index into the pColorAttachments array
     VkAttachmentReference color_attachment_ref = {};
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // Create the depth attachment
+    VkAttachmentDescription depth_attachment = {};
+    depth_attachment.flags = 0;
+    depth_attachment.format = _depthFormat;
+    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // Attachment number will index to the pDepthStencilAttachment array
+    VkAttachmentReference depth_attachment_ref = {};
+    depth_attachment_ref.attachment = 1;
+    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     // Create one subpass, which is the minimum
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
     // Create a dependency to the subpass
     VkSubpassDependency subpass_dependency = {};
@@ -210,15 +250,32 @@ void VulkanEngine::init_default_renderpass() {
     subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
+    // Make this subpass dependent on the previous renderpasses
+    VkSubpassDependency depth_dependency = {};
+    depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    depth_dependency.dstSubpass = 0;
+    depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    depth_dependency.srcAccessMask = 0;
+    depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    depth_dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    // Create an array holding the subpass and depth dependencies
+    VkSubpassDependency dependencies[2] = {subpass_dependency, depth_dependency};
+
+    // Create an array holding the color attachment and the depth attachment
+    VkAttachmentDescription attachments[2] = {color_attachment, depth_attachment};
+
     // Connect the color attachment to the info
     VkRenderPassCreateInfo render_pass_create_info = {};
     render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    render_pass_create_info.attachmentCount = 1;
-    render_pass_create_info.pAttachments = &color_attachment;
+    render_pass_create_info.attachmentCount = 2;
+    render_pass_create_info.pAttachments = &attachments[0];
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &subpass;
-    render_pass_create_info.dependencyCount = 1;
-    render_pass_create_info.pDependencies = &subpass_dependency;
+    render_pass_create_info.dependencyCount = 2;
+    render_pass_create_info.pDependencies = &dependencies[0];
 
     VK_CHECK(vkCreateRenderPass(_device, &render_pass_create_info, nullptr, &_renderPass));
 
@@ -237,8 +294,16 @@ void VulkanEngine::init_framebuffers() {
     _framebuffers = std::vector<VkFramebuffer>(swapchain_image_count);
 
     // Create framebuffers for each of the swapchain image views
-    for (uint32_t i = 0; i < swapchain_image_count; i++) {
-        framebuffer_create_info.pAttachments = &_swapchainImageViews[i];
+    for (int i = 0; i < swapchain_image_count; i++) {
+        // Create the attachments for the framebuffers
+        VkImageView attachments[2];
+        attachments[0] = _swapchainImageViews[i];
+        attachments[1] = _depthImageView;
+
+        // Parametrize the framebuffer create-info
+        framebuffer_create_info.attachmentCount = 2;
+        framebuffer_create_info.pAttachments = attachments;
+
         VK_CHECK(vkCreateFramebuffer(_device, &framebuffer_create_info, nullptr, &_framebuffers[i]));
 
         // Add each framebuffer to the deletion queue
@@ -325,11 +390,12 @@ void VulkanEngine::init_pipelines() {
         std::cout << "Loaded triangle shader" << std::endl;
     }
 
+    // Create the pipeline layout
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = vkinit::pipeline_layout_create_info();
     VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_create_info, nullptr, &_trianglePipelineLayout));
 
+    // Create the pipeline
     PipelineBuilder pipeline_builder;
-
     pipeline_builder._shaderStages.push_back(
         vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangle_vertex_shader));
 
@@ -352,6 +418,9 @@ void VulkanEngine::init_pipelines() {
     pipeline_builder._multisampling = vkinit::pipeline_multisample_state_create_info();
     pipeline_builder._colorBlendAttachment = vkinit::pipeline_color_blend_attachment_state();
     pipeline_builder._pipelineLayout = _trianglePipelineLayout;
+    pipeline_builder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+    // Build the pipeline
     _trianglePipeline = pipeline_builder.build_pipeline(_device, _renderPass);
 
     // Get the vertex input description
@@ -432,7 +501,12 @@ void VulkanEngine::load_meshes() {
     _triangleMesh._vertices[1].color = {0.f, 1.f, 0.0f};
     _triangleMesh._vertices[2].color = {0.f, 1.f, 0.0f};
 
+    // Load the obj file into a mesh
+    _objMesh.load_from_obj("../assets/monkey_smooth.obj");
+
+    // Send the meshes to the GPU
     upload_mesh(_triangleMesh);
+    upload_mesh(_objMesh);
 }
 
 void VulkanEngine::upload_mesh(Mesh &mesh) {
@@ -499,6 +573,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass renderp
     pipeline_create_info.renderPass = renderpass;
     pipeline_create_info.subpass = 0;
     pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+    pipeline_create_info.pDepthStencilState = &_depthStencil;
 
     // Assure the instantiation of the graphics pipeline instantiation
     VkPipeline new_pipeline;
@@ -552,36 +627,40 @@ void VulkanEngine::draw() {
 
     VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_create_info));
 
-    // Create a clear color from the frame number. It will flash
-    VkClearValue clear_value = {};
-    // float flash = abs(sin(_frameNumber / 120.0f));
-    float flash = 0.0f;
-    clear_value.color = {{0.0f, 0.0f, flash, 0.0f}};
+    // Compute the flashing blue background
+    VkClearValue clearValue;
+    float flash = abs(sin(_frameNumber / 120.f));
+    clearValue.color = {{0.0f, 0.0f, flash, 1.0f}};
 
-    // Start the main renderpass
-    VkRenderPassBeginInfo render_pass_create_info = vkinit::render_pass_begin_info(
-        _renderPass, _windowExtent, _framebuffers[swapchain_image_index]);
+    // The depth is 1
+    VkClearValue depthClear;
+    depthClear.depthStencil.depth = 1.f;
+
+    // Start the renderpass
+    VkRenderPassBeginInfo render_pass_begin_info = vkinit::render_pass_begin_info(_renderPass, _windowExtent,
+        _framebuffers[swapchain_image_index]);
 
     // Connect clear values
-    render_pass_create_info.clearValueCount = 1;
-    render_pass_create_info.pClearValues = &clear_value;
+    render_pass_begin_info.clearValueCount = 2;
+    VkClearValue clearValues[] = {clearValue, depthClear};
+    render_pass_begin_info.pClearValues = &clearValues[0];
 
-    // Start the render pass
-    vkCmdBeginRenderPass(command_buffer, &render_pass_create_info, VK_SUBPASS_CONTENTS_INLINE);
+    // Link the command buffer to the begin render pass
+    vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
     // Initialize the pipeline and bind it to the command buffer
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
 
     // Bind the mesh buffer and draw the vertices
     VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(command_buffer, 0, 1, &_triangleMesh._vertexBuffer._buffer, &offset);
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &_objMesh._vertexBuffer._buffer, &offset);
 
     // Define the camera position, the view and the projection for the rotation
-    glm::vec3 camera_position = { 0.f,0.f,-2.f };
+    glm::vec3 camera_position = {0.f, 0.f, -2.f};
     glm::mat4 view = glm::translate(glm::mat4(1.f), camera_position);
     glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
     projection[1][1] *= -1;
-    glm::mat4 model = glm::rotate(glm::mat4{ 1.0f }, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
+    glm::mat4 model = glm::rotate(glm::mat4{1.0f}, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
 
     // Calculate mesh matrix
     glm::mat4 mesh_matrix = projection * view * model;
@@ -591,10 +670,11 @@ void VulkanEngine::draw() {
     constants.render_matrix = mesh_matrix;
 
     // Upload the matrix to the GPU via push constants
-    vkCmdPushConstants(command_buffer, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+    vkCmdPushConstants(command_buffer, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants),
+                       &constants);
 
     // Draw the mesh
-    vkCmdDraw(command_buffer, _triangleMesh._vertices.size(), 1, 0, 0);
+    vkCmdDraw(command_buffer, _objMesh._vertices.size(), 1, 0, 0);
 
     // End the render pass
     vkCmdEndRenderPass(command_buffer);
