@@ -662,7 +662,7 @@ void VulkanEngine::draw() {
     glm::mat4 view = glm::translate(glm::mat4(1.f), camera_position);
     glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
     projection[1][1] *= -1;
-    glm::mat4 model = glm::rotate(glm::mat4{1.0f}, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
+    glm::mat4 model = glm::rotate(glm::mat4{1.0f}, glm::radians(static_cast<float>(_frameNumber) * 0.4f), glm::vec3(0, 1, 0));
 
     // Calculate mesh matrix
     glm::mat4 mesh_matrix = projection * view * model;
