@@ -502,7 +502,7 @@ void VulkanEngine::load_meshes() {
     _triangleMesh._vertices[2].color = {0.f, 1.f, 0.0f};
 
     // Load the obj file into a mesh
-    _objMesh.load_from_obj("../assets/monkey_smooth.obj");
+    _objMesh.load_from_obj("../assets/cube.obj");
 
     // Send the meshes to the GPU
     upload_mesh(_triangleMesh);
