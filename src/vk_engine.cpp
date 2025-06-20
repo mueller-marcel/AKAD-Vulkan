@@ -40,7 +40,7 @@ void VulkanEngine::init() {
 
     // Create the window
     _window = SDL_CreateWindow(
-        "Vulkan Triangle with color gradient",
+        "Vulkan rotating cube",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         width,
