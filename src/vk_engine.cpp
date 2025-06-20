@@ -627,10 +627,12 @@ void VulkanEngine::draw() {
 
     VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_create_info));
 
-    // Compute the flashing blue background
+    // Compute the background color
     VkClearValue clearValue;
-    float flash = abs(sin(_frameNumber / 120.f));
-    clearValue.color = {{0.0f, 0.0f, flash, 1.0f}};
+    clearValue.color.float32[0] = 200.0f / 255.0f;
+    clearValue.color.float32[1] = 200.0f / 255.0f;
+    clearValue.color.float32[2] = 200.0f / 255.0f;
+    clearValue.color.float32[3] = 1.0f;
 
     // The depth is 1
     VkClearValue depthClear;
