@@ -35,7 +35,7 @@ set(SPIRV_BINARY_FILES)
 foreach(GLSL ${GLSL_SOURCE_FILES})
   message(STATUS "BUILDING SHADER")
   get_filename_component(FILE_NAME ${GLSL} NAME)
-  set(SPIRV "${PROJECT_SOURCE_DIR}/shaders/${FILE_NAME}.spv")
+  set(SPIRV "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${FILE_NAME}.spv")
   message(STATUS ${GLSL})
   add_custom_command(
     OUTPUT ${SPIRV}
@@ -51,3 +51,20 @@ add_custom_target(
     Shaders 
     DEPENDS ${SPIRV_BINARY_FILES}
     )
+
+# Copy Cube.obj to output directory
+add_custom_command(
+        OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/cube.obj
+        COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/assets/cube.obj ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/cube.obj
+        DEPENDS ${PROJECT_SOURCE_DIR}/assets/cube.obj
+        COMMENT "Copying Cube.obj to output directory"
+)
+
+add_custom_target(
+        CopyCubeObj ALL
+        DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/cube.obj
+)
+
+# Ensure shaders build before main executable
+add_dependencies(vulkan-cube Shaders)
+add_dependencies(vulkan-cube CopyCubeObj)
